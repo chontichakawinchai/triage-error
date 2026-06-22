@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Triage Batch OCR - ตรวจสอบการคัดแยก</title>
+    <title>Triage OCR Check - ฟรี</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -120,7 +121,7 @@
             color: #333;
         }
         
-        .btn-ocr:hover {
+        .btn-ocr:hover:not(:disabled) {
             background: #e0a800;
             transform: translateY(-2px);
         }
@@ -128,6 +129,7 @@
         .btn-ocr:disabled {
             background: #ccc;
             cursor: not-allowed;
+            opacity: 0.6;
         }
         
         .btn-export {
@@ -194,21 +196,6 @@
         .status-pending {
             background: #fff3cd;
             color: #856404;
-        }
-        
-        .status-processing {
-            background: #d1ecf1;
-            color: #0c5460;
-        }
-        
-        .status-done {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status-error {
-            background: #f8d7da;
-            color: #721c24;
         }
         
         .progress-bar {
@@ -299,7 +286,7 @@
             font-size: 12px;
         }
         
-        .status-error-badge {
+        .status-error {
             background: #f8d7da;
             color: #721c24;
             padding: 4px 8px;
@@ -316,76 +303,29 @@
             font-size: 13px;
         }
         
-        .api-section {
+        .note {
             background: #e7f3ff;
-            padding: 15px;
-            border-radius: 8px;
+            padding: 12px;
+            border-radius: 6px;
             margin-bottom: 15px;
             border-left: 4px solid #667eea;
-        }
-        
-        .api-section label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #333;
-            font-size: 13px;
-        }
-        
-        .api-section input {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            font-size: 13px;
-        }
-        
-        .api-section input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .api-section small {
-            display: block;
-            margin-top: 5px;
-            color: #666;
             font-size: 12px;
-        }
-        
-        .loading-spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            color: #333;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📸 Triage Batch OCR</h1>
-            <p>Upload หลายรูป → OCR ทั้งหมด → Flag Triage ผิด</p>
+            <h1>📸 Triage OCR Check - ฟรี</h1>
+            <p>ใช้ Tesseract OCR (ฟรี ไม่ต้องจ่าย)</p>
         </div>
         
         <div class="content">
-            <!-- API Key Setup -->
-            <div class="section">
-                <div class="api-section">
-                    <label for="apiKey">🔑 Anthropic API Key</label>
-                    <input type="password" id="apiKey" placeholder="sk-ant-...">
-                    <small>📌 ได้จาก <a href="https://console.anthropic.com/keys" target="_blank" style="color: #667eea;">console.anthropic.com/keys</a></small>
-                </div>
+            <div class="note">
+                <strong>✅ ข้อดี:</strong> ใช้ฟรี ไม่ต้องจ่ายเงิน ใช้ได้ถาวร
             </div>
             
-            <!-- Upload Section -->
             <div class="section">
                 <h2>📤 Upload รูป</h2>
                 <div class="upload-area" id="uploadArea">
@@ -400,7 +340,6 @@
                 </div>
             </div>
             
-            <!-- Progress -->
             <div class="section" id="progressSection" style="display: none;">
                 <h2>⏳ ความคืบหน้า</h2>
                 <div class="progress-bar">
@@ -409,7 +348,6 @@
                 <p id="progressText" style="text-align: center; font-size: 13px; color: #666;"></p>
             </div>
             
-            <!-- Controls -->
             <div class="section">
                 <div class="button-group">
                     <button class="btn-ocr" id="ocrBtn" onclick="startOCRBatch()" disabled>🔍 OCR ทั้งหมด</button>
@@ -418,7 +356,6 @@
                 </div>
             </div>
             
-            <!-- Statistics -->
             <div class="section" id="statsSection" style="display: none;">
                 <div class="stats">
                     <div class="stat-card">
@@ -436,58 +373,6 @@
                 </div>
             </div>
             
-            <!-- Edit Form -->
-            <div class="section" id="editSection" style="display: none;">
-                <h2>✏️ แก้ไขข้อมูล</h2>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                    <div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-                        <div>
-                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">HN</label>
-                            <input type="text" id="editHN" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
-                        </div>
-                        <div>
-                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">ชื่อ</label>
-                            <input type="text" id="editName" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
-                        </div>
-                        <div>
-                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">Triage 1</label>
-                            <select id="editTriage1" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
-                                <option value="">--</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">Triage 2</label>
-                            <select id="editTriage2" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
-                                <option value="">--</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">Dx</label>
-                            <input type="text" id="editDx" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
-                        </div>
-                        <div>
-                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">เวลา</label>
-                            <input type="time" id="editTime" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
-                        </div>
-                    </div>
-                    <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
-                        <button onclick="saveEdit()" style="padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">✅ บันทึก</button>
-                        <button onclick="cancelEdit()" style="padding: 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">❌ ยกเลิก</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Results Table -->
             <div class="section">
                 <h2>📈 ผลลัพธ์</h2>
                 <div id="tableContainer"></div>
@@ -499,7 +384,6 @@
         let uploadedFiles = [];
         let results = [];
         
-        // Setup upload area
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         
@@ -556,18 +440,12 @@
         }
         
         async function startOCRBatch() {
-            const apiKey = document.getElementById('apiKey').value.trim();
-            if (!apiKey) {
-                alert('⚠️ กรุณากรอก API Key');
-                return;
-            }
-            
             results = [];
             document.getElementById('progressSection').style.display = 'block';
             document.getElementById('ocrBtn').disabled = true;
             
             for (let i = 0; i < uploadedFiles.length; i++) {
-                await ocrFile(uploadedFiles[i], i, uploadedFiles.length, apiKey);
+                await ocrFile(uploadedFiles[i], i, uploadedFiles.length);
             }
             
             document.getElementById('progressSection').style.display = 'none';
@@ -576,85 +454,35 @@
             displayResults();
         }
         
-        async function ocrFile(file, index, total, apiKey) {
+        async function ocrFile(file, index, total) {
             const reader = new FileReader();
             
             return new Promise((resolve) => {
                 reader.onload = async (e) => {
                     try {
-                        const base64 = e.target.result.split(',')[1];
+                        updateProgress(index, total, file.name);
                         
-                        updateProgress(index, total, file.name, 'processing');
+                        const { data: { text } } = await Tesseract.recognize(
+                            e.target.result,
+                            'tha'
+                        );
                         
-                        const response = await fetch('https://api.anthropic.com/v1/messages', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'x-api-key': apiKey,
-                                'anthropic-version': '2023-06-01'
-                            },
-                            body: JSON.stringify({
-                                model: 'claude-opus-4-6',
-                                max_tokens: 1000,
-                                messages: [{
-                                    role: 'user',
-                                    content: [
-                                        {
-                                            type: 'image',
-                                            source: {
-                                                type: 'base64',
-                                                media_type: 'image/jpeg',
-                                                data: base64
-                                            }
-                                        },
-                                        {
-                                            type: 'text',
-                                            text: `อ่านเอกสาร ER Record Non-Trauma แล้วดึงข้อมูลเหล่านี้ (ตอบเป็น JSON เท่านั้น):
-{
-  "hn": "หมายเลขประจำตัว (ตัวเลข)",
-  "name": "ชื่อ-นามสกุล",
-  "triage1": "Triage ครั้งที่ 1 (1-5)",
-  "triage2": "Triage ครั้งที่ 2 (1-5)",
-  "dx": "Diagnosis/Chief Complaint",
-  "timeReport": "เวลารายงาน (HH:MM)",
-  "waitingTime": "ระยะรอคอย (นาที)"
-}
-
-ถ้าไม่เจอให้ใส่ null`
-                                        }
-                                    ]
-                                }]
-                            })
-                        });
-                        
-                        if (!response.ok) {
-                            throw new Error(`API Error: ${response.status}`);
-                        }
-                        
-                        const data = await response.json();
-                        const textContent = data.content[0]?.text || '';
-                        
-                        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-                        if (!jsonMatch) {
-                            throw new Error('ไม่สามารถอ่าน');
-                        }
-                        
-                        const ocrData = JSON.parse(jsonMatch[0]);
+                        const hn = extractNumber(text, /HN[:\s]+(\d+)/) || '-';
+                        const triage1 = extractNumber(text, /Triage.*?1[:\s]*(\d)/) || '-';
+                        const triage2 = extractNumber(text, /Triage.*?2[:\s]*(\d)/) || '-';
                         
                         const result = {
                             fileName: file.name,
-                            hn: ocrData.hn || '-',
-                            name: ocrData.name || '-',
-                            triage1: ocrData.triage1 || '-',
-                            triage2: ocrData.triage2 || '-',
-                            dx: ocrData.dx || '-',
-                            timeReport: ocrData.timeReport || '-',
-                            waitingTime: ocrData.waitingTime || '-',
-                            status: (ocrData.triage1 === ocrData.triage2) ? 'ถูก' : 'ผิด'
+                            hn: hn,
+                            name: '-',
+                            triage1: triage1,
+                            triage2: triage2,
+                            dx: '-',
+                            timeReport: '-',
+                            status: (triage1 !== '-' && triage2 !== '-' && triage1 === triage2) ? 'ถูก' : 'ผิด'
                         };
                         
                         results.push(result);
-                        updateProgress(index + 1, total, file.name, 'done');
                         
                     } catch (err) {
                         results.push({
@@ -665,12 +493,11 @@
                             triage2: '-',
                             dx: '-',
                             timeReport: '-',
-                            waitingTime: '-',
-                            status: '❌ ' + err.message
+                            status: 'Error'
                         });
-                        updateProgress(index + 1, total, file.name, 'error');
                     }
                     
+                    updateProgress(index + 1, total, file.name);
                     resolve();
                 };
                 
@@ -678,14 +505,17 @@
             });
         }
         
-        function updateProgress(current, total, fileName, status) {
+        function extractNumber(text, regex) {
+            const match = text.match(regex);
+            return match ? match[1] : null;
+        }
+        
+        function updateProgress(current, total, fileName) {
             const percent = Math.round((current / total) * 100);
             document.getElementById('progressFill').style.width = percent + '%';
             document.getElementById('progressFill').textContent = percent + '%';
             document.getElementById('progressText').textContent = `${current}/${total} - ${fileName}`;
         }
-        
-        let currentEditIndex = -1;
         
         function displayResults() {
             const container = document.getElementById('tableContainer');
@@ -700,85 +530,22 @@
             statsSection.style.display = 'block';
             const total = results.length;
             const errors = results.filter(r => r.status === 'ผิด').length;
-            const correct = total - errors;
+            const correct = results.filter(r => r.status === 'ถูก').length;
             
             document.getElementById('totalCount').textContent = total;
             document.getElementById('errorCount').textContent = errors;
             document.getElementById('correctCount').textContent = correct;
             
-            let html = '<table><thead><tr><th>#</th><th>HN</th><th>ชื่อ</th><th>T1</th><th>T2</th><th>สถานะ</th><th>Dx</th><th>เวลา</th><th>รอ</th><th>แก้ไข</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>#</th><th>HN</th><th>T1</th><th>T2</th><th>สถานะ</th></tr></thead><tbody>';
             
             results.forEach((r, i) => {
-                const statusClass = r.status === 'ถูก' ? 'status-ok' : 'status-error-badge';
-                const statusText = r.status === 'ถูก' ? '✓ ถูก' : (r.status.includes('❌') ? r.status : '✗ ผิด');
-                html += `<tr>
-                    <td>${i+1}</td>
-                    <td><strong>${r.hn}</strong></td>
-                    <td>${r.name}</td>
-                    <td>${r.triage1}</td>
-                    <td>${r.triage2}</td>
-                    <td><div class="${statusClass}">${statusText}</div></td>
-                    <td>${r.dx}</td>
-                    <td>${r.timeReport}</td>
-                    <td>${r.waitingTime}</td>
-                    <td><button onclick="editRecord(${i})" style="padding: 6px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️</button></td>
-                </tr>`;
+                const statusClass = r.status === 'ถูก' ? 'status-ok' : 'status-error';
+                const statusText = r.status === 'ถูก' ? '✓ ถูก' : '✗ ผิด';
+                html += `<tr><td>${i+1}</td><td>${r.hn}</td><td>${r.triage1}</td><td>${r.triage2}</td><td><div class="${statusClass}">${statusText}</div></td></tr>`;
             });
             
             html += '</tbody></table>';
             container.innerHTML = html;
-        }
-        
-        function editRecord(idx) {
-            currentEditIndex = idx;
-            const r = results[idx];
-            
-            document.getElementById('editHN').value = r.hn === '-' ? '' : r.hn;
-            document.getElementById('editName').value = r.name === '-' ? '' : r.name;
-            document.getElementById('editTriage1').value = r.triage1 === '-' ? '' : r.triage1;
-            document.getElementById('editTriage2').value = r.triage2 === '-' ? '' : r.triage2;
-            document.getElementById('editDx').value = r.dx === '-' ? '' : r.dx;
-            document.getElementById('editTime').value = r.timeReport === '-' ? '' : r.timeReport;
-            
-            document.getElementById('editSection').style.display = 'block';
-            document.getElementById('editHN').focus();
-            
-            // Scroll to edit form
-            document.getElementById('editSection').scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        function saveEdit() {
-            if (currentEditIndex === -1) return;
-            
-            const hn = document.getElementById('editHN').value.trim();
-            const triage1 = document.getElementById('editTriage1').value;
-            const triage2 = document.getElementById('editTriage2').value;
-            
-            if (!hn || !triage1 || !triage2) {
-                alert('⚠️ กรุณากรอก HN, Triage 1 และ 2');
-                return;
-            }
-            
-            results[currentEditIndex] = {
-                fileName: results[currentEditIndex].fileName,
-                hn: hn,
-                name: document.getElementById('editName').value.trim() || '-',
-                triage1: triage1,
-                triage2: triage2,
-                dx: document.getElementById('editDx').value.trim() || '-',
-                timeReport: document.getElementById('editTime').value || '-',
-                waitingTime: results[currentEditIndex].waitingTime,
-                status: (triage1 === triage2) ? 'ถูก' : 'ผิด'
-            };
-            
-            cancelEdit();
-            displayResults();
-            alert('✅ บันทึกแล้ว!');
-        }
-        
-        function cancelEdit() {
-            currentEditIndex = -1;
-            document.getElementById('editSection').style.display = 'none';
         }
         
         function exportReport() {
@@ -787,32 +554,22 @@
                 return;
             }
             
-            const ws_data = [
-                ['รายงาน Triage ผิดพลาด'],
-                ['วันที่:', new Date().toLocaleString('th-TH')],
-                [],
-                ['#', 'HN', 'ชื่อ', 'T1', 'T2', 'สถานะ', 'Dx', 'เวลา', 'รอ']
-            ];
+            const ws_data = [['รายงาน Triage'], ['วันที่:', new Date().toLocaleString('th-TH')], [], ['#', 'HN', 'T1', 'T2', 'สถานะ']];
             
             results.forEach((r, i) => {
                 if (r.status === 'ผิด') {
-                    ws_data.push([i+1, r.hn, r.name, r.triage1, r.triage2, r.status, r.dx, r.timeReport, r.waitingTime]);
+                    ws_data.push([i+1, r.hn, r.triage1, r.triage2, r.status]);
                 }
             });
-            
-            ws_data.push([]);
-            const total = results.length;
-            const errors = results.filter(r => r.status === 'ผิด').length;
-            ws_data.push(['สรุป:', 'รวม', total, 'ผิด', errors, 'ถูก', total - errors]);
             
             const ws = XLSX.utils.aoa_to_sheet(ws_data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Report');
-            XLSX.writeFile(wb, `Triage-Report-${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
+            XLSX.writeFile(wb, `Triage-${new Date().toLocaleDateString('th-TH')}.xlsx`);
         }
         
         function clearAll() {
-            if (confirm('ล้างข้อมูลทั้งหมด?')) {
+            if (confirm('ล้างข้อมูล?')) {
                 uploadedFiles = [];
                 results = [];
                 fileInput.value = '';
@@ -820,7 +577,6 @@
                 document.getElementById('tableContainer').innerHTML = '';
                 document.getElementById('statsSection').style.display = 'none';
                 document.getElementById('ocrBtn').disabled = true;
-                document.getElementById('exportBtn').disabled = true;
             }
         }
     </script>
