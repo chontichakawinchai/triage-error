@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Triage Batch OCR - ตรวจสอบการคัดแยก</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 20px;
+        }
+        
+        .section {
+            margin-bottom: 20px;
+        }
+        
+        .section h2 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-area:hover {
+            background: #e7f3ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area.dragover {
+            background: #e7f3ff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+        
+        .upload-text {
+            font-size: 18px;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .upload-subtext {
+            font-size: 13px;
+            color: #666;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-ocr {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .btn-ocr:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+        
+        .btn-ocr:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-export {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-export:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+        
+        .btn-clear {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-clear:hover {
+            background: #c82333;
+        }
+        
+        .btn-delete {
+            background: #fd7e14;
+            color: white;
+            padding: 6px 10px;
+            font-size: 11px;
+        }
+        
+        .btn-delete:hover {
+            background: #e86b00;
+        }
+        
+        .file-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .file-name {
+            flex: 1;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .file-status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin: 0 10px;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-processing {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .status-done {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-card.error {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        
+        thead {
+            background: #667eea;
+            color: white;
+        }
+        
+        th {
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .status-ok {
+            background: #d4edda;
+            color: #155724;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .status-error-badge {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 30px;
+            font-size: 13px;
+        }
+        
+        .api-section {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .api-section label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 13px;
+        }
+        
+        .api-section input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        
+        .api-section input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .api-section small {
+            display: block;
+            margin-top: 5px;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📸 Triage Batch OCR</h1>
+            <p>Upload หลายรูป → OCR ทั้งหมด → Flag Triage ผิด</p>
+        </div>
+        
+        <div class="content">
+            <!-- API Key Setup -->
+            <div class="section">
+                <div class="api-section">
+                    <label for="apiKey">🔑 Anthropic API Key</label>
+                    <input type="password" id="apiKey" placeholder="sk-ant-...">
+                    <small>📌 ได้จาก <a href="https://console.anthropic.com/keys" target="_blank" style="color: #667eea;">console.anthropic.com/keys</a></small>
+                </div>
+            </div>
+            
+            <!-- Upload Section -->
+            <div class="section">
+                <h2>📤 Upload รูป</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-text">📸 ลาก-วาง รูป หรือ คลิก</div>
+                    <div class="upload-subtext">รองรับ JPG, PNG (หลายไฟล์พร้อมกัน)</div>
+                </div>
+                <input type="file" id="fileInput" multiple accept="image/*">
+                
+                <div class="file-list" id="fileList" style="display: none;">
+                    <h3 style="margin-bottom: 10px; font-size: 14px;">📁 ไฟล์ที่อัพโหลด:</h3>
+                    <div id="fileItems"></div>
+                </div>
+            </div>
+            
+            <!-- Progress -->
+            <div class="section" id="progressSection" style="display: none;">
+                <h2>⏳ ความคืบหน้า</h2>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+                <p id="progressText" style="text-align: center; font-size: 13px; color: #666;"></p>
+            </div>
+            
+            <!-- Controls -->
+            <div class="section">
+                <div class="button-group">
+                    <button class="btn-ocr" id="ocrBtn" onclick="startOCRBatch()" disabled>🔍 OCR ทั้งหมด</button>
+                    <button class="btn-export" onclick="exportReport()" disabled id="exportBtn">📊 Export</button>
+                    <button class="btn-clear" onclick="clearAll()">🗑️ ล้าง</button>
+                </div>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="section" id="statsSection" style="display: none;">
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalCount">0</div>
+                        <div class="stat-label">รวม</div>
+                    </div>
+                    <div class="stat-card error">
+                        <div class="stat-number" id="errorCount">0</div>
+                        <div class="stat-label">Triage ผิด</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="correctCount">0</div>
+                        <div class="stat-label">Triage ถูก</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Edit Form -->
+            <div class="section" id="editSection" style="display: none;">
+                <h2>✏️ แก้ไขข้อมูล</h2>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                    <div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                        <div>
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">HN</label>
+                            <input type="text" id="editHN" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">ชื่อ</label>
+                            <input type="text" id="editName" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">Triage 1</label>
+                            <select id="editTriage1" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                                <option value="">--</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">Triage 2</label>
+                            <select id="editTriage2" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                                <option value="">--</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">Dx</label>
+                            <input type="text" id="editDx" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">เวลา</label>
+                            <input type="time" id="editTime" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
+                        <button onclick="saveEdit()" style="padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">✅ บันทึก</button>
+                        <button onclick="cancelEdit()" style="padding: 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">❌ ยกเลิก</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results Table -->
+            <div class="section">
+                <h2>📈 ผลลัพธ์</h2>
+                <div id="tableContainer"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let uploadedFiles = [];
+        let results = [];
+        
+        // Setup upload area
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            uploadedFiles = Array.from(files);
+            displayFileList();
+            document.getElementById('ocrBtn').disabled = uploadedFiles.length === 0;
+        }
+        
+        function displayFileList() {
+            const fileList = document.getElementById('fileList');
+            const fileItems = document.getElementById('fileItems');
+            
+            if (uploadedFiles.length === 0) {
+                fileList.style.display = 'none';
+                return;
+            }
+            
+            fileList.style.display = 'block';
+            fileItems.innerHTML = uploadedFiles.map((file, idx) => `
+                <div class="file-item">
+                    <div class="file-name">📄 ${file.name}</div>
+                    <div class="file-status status-pending">รอ OCR</div>
+                    <button class="btn-delete" onclick="removeFile(${idx})">ลบ</button>
+                </div>
+            `).join('');
+        }
+        
+        function removeFile(idx) {
+            uploadedFiles.splice(idx, 1);
+            displayFileList();
+            document.getElementById('ocrBtn').disabled = uploadedFiles.length === 0;
+        }
+        
+        async function startOCRBatch() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (!apiKey) {
+                alert('⚠️ กรุณากรอก API Key');
+                return;
+            }
+            
+            results = [];
+            document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('ocrBtn').disabled = true;
+            
+            for (let i = 0; i < uploadedFiles.length; i++) {
+                await ocrFile(uploadedFiles[i], i, uploadedFiles.length, apiKey);
+            }
+            
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('ocrBtn').disabled = false;
+            document.getElementById('exportBtn').disabled = results.length === 0;
+            displayResults();
+        }
+        
+        async function ocrFile(file, index, total, apiKey) {
+            const reader = new FileReader();
+            
+            return new Promise((resolve) => {
+                reader.onload = async (e) => {
+                    try {
+                        const base64 = e.target.result.split(',')[1];
+                        
+                        updateProgress(index, total, file.name, 'processing');
+                        
+                        const response = await fetch('https://api.anthropic.com/v1/messages', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-api-key': apiKey,
+                                'anthropic-version': '2023-06-01'
+                            },
+                            body: JSON.stringify({
+                                model: 'claude-opus-4-6',
+                                max_tokens: 1000,
+                                messages: [{
+                                    role: 'user',
+                                    content: [
+                                        {
+                                            type: 'image',
+                                            source: {
+                                                type: 'base64',
+                                                media_type: 'image/jpeg',
+                                                data: base64
+                                            }
+                                        },
+                                        {
+                                            type: 'text',
+                                            text: `อ่านเอกสาร ER Record Non-Trauma แล้วดึงข้อมูลเหล่านี้ (ตอบเป็น JSON เท่านั้น):
+{
+  "hn": "หมายเลขประจำตัว (ตัวเลข)",
+  "name": "ชื่อ-นามสกุล",
+  "triage1": "Triage ครั้งที่ 1 (1-5)",
+  "triage2": "Triage ครั้งที่ 2 (1-5)",
+  "dx": "Diagnosis/Chief Complaint",
+  "timeReport": "เวลารายงาน (HH:MM)",
+  "waitingTime": "ระยะรอคอย (นาที)"
+}
+
+ถ้าไม่เจอให้ใส่ null`
+                                        }
+                                    ]
+                                }]
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`API Error: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        const textContent = data.content[0]?.text || '';
+                        
+                        const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+                        if (!jsonMatch) {
+                            throw new Error('ไม่สามารถอ่าน');
+                        }
+                        
+                        const ocrData = JSON.parse(jsonMatch[0]);
+                        
+                        const result = {
+                            fileName: file.name,
+                            hn: ocrData.hn || '-',
+                            name: ocrData.name || '-',
+                            triage1: ocrData.triage1 || '-',
+                            triage2: ocrData.triage2 || '-',
+                            dx: ocrData.dx || '-',
+                            timeReport: ocrData.timeReport || '-',
+                            waitingTime: ocrData.waitingTime || '-',
+                            status: (ocrData.triage1 === ocrData.triage2) ? 'ถูก' : 'ผิด'
+                        };
+                        
+                        results.push(result);
+                        updateProgress(index + 1, total, file.name, 'done');
+                        
+                    } catch (err) {
+                        results.push({
+                            fileName: file.name,
+                            hn: '-',
+                            name: '-',
+                            triage1: '-',
+                            triage2: '-',
+                            dx: '-',
+                            timeReport: '-',
+                            waitingTime: '-',
+                            status: '❌ ' + err.message
+                        });
+                        updateProgress(index + 1, total, file.name, 'error');
+                    }
+                    
+                    resolve();
+                };
+                
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        function updateProgress(current, total, fileName, status) {
+            const percent = Math.round((current / total) * 100);
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressFill').textContent = percent + '%';
+            document.getElementById('progressText').textContent = `${current}/${total} - ${fileName}`;
+        }
+        
+        let currentEditIndex = -1;
+        
+        function displayResults() {
+            const container = document.getElementById('tableContainer');
+            const statsSection = document.getElementById('statsSection');
+            
+            if (results.length === 0) {
+                container.innerHTML = '<div class="empty-message">📭 ยังไม่มีผลลัพธ์</div>';
+                statsSection.style.display = 'none';
+                return;
+            }
+            
+            statsSection.style.display = 'block';
+            const total = results.length;
+            const errors = results.filter(r => r.status === 'ผิด').length;
+            const correct = total - errors;
+            
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('errorCount').textContent = errors;
+            document.getElementById('correctCount').textContent = correct;
+            
+            let html = '<table><thead><tr><th>#</th><th>HN</th><th>ชื่อ</th><th>T1</th><th>T2</th><th>สถานะ</th><th>Dx</th><th>เวลา</th><th>รอ</th><th>แก้ไข</th></tr></thead><tbody>';
+            
+            results.forEach((r, i) => {
+                const statusClass = r.status === 'ถูก' ? 'status-ok' : 'status-error-badge';
+                const statusText = r.status === 'ถูก' ? '✓ ถูก' : (r.status.includes('❌') ? r.status : '✗ ผิด');
+                html += `<tr>
+                    <td>${i+1}</td>
+                    <td><strong>${r.hn}</strong></td>
+                    <td>${r.name}</td>
+                    <td>${r.triage1}</td>
+                    <td>${r.triage2}</td>
+                    <td><div class="${statusClass}">${statusText}</div></td>
+                    <td>${r.dx}</td>
+                    <td>${r.timeReport}</td>
+                    <td>${r.waitingTime}</td>
+                    <td><button onclick="editRecord(${i})" style="padding: 6px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️</button></td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function editRecord(idx) {
+            currentEditIndex = idx;
+            const r = results[idx];
+            
+            document.getElementById('editHN').value = r.hn === '-' ? '' : r.hn;
+            document.getElementById('editName').value = r.name === '-' ? '' : r.name;
+            document.getElementById('editTriage1').value = r.triage1 === '-' ? '' : r.triage1;
+            document.getElementById('editTriage2').value = r.triage2 === '-' ? '' : r.triage2;
+            document.getElementById('editDx').value = r.dx === '-' ? '' : r.dx;
+            document.getElementById('editTime').value = r.timeReport === '-' ? '' : r.timeReport;
+            
+            document.getElementById('editSection').style.display = 'block';
+            document.getElementById('editHN').focus();
+            
+            // Scroll to edit form
+            document.getElementById('editSection').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function saveEdit() {
+            if (currentEditIndex === -1) return;
+            
+            const hn = document.getElementById('editHN').value.trim();
+            const triage1 = document.getElementById('editTriage1').value;
+            const triage2 = document.getElementById('editTriage2').value;
+            
+            if (!hn || !triage1 || !triage2) {
+                alert('⚠️ กรุณากรอก HN, Triage 1 และ 2');
+                return;
+            }
+            
+            results[currentEditIndex] = {
+                fileName: results[currentEditIndex].fileName,
+                hn: hn,
+                name: document.getElementById('editName').value.trim() || '-',
+                triage1: triage1,
+                triage2: triage2,
+                dx: document.getElementById('editDx').value.trim() || '-',
+                timeReport: document.getElementById('editTime').value || '-',
+                waitingTime: results[currentEditIndex].waitingTime,
+                status: (triage1 === triage2) ? 'ถูก' : 'ผิด'
+            };
+            
+            cancelEdit();
+            displayResults();
+            alert('✅ บันทึกแล้ว!');
+        }
+        
+        function cancelEdit() {
+            currentEditIndex = -1;
+            document.getElementById('editSection').style.display = 'none';
+        }
+        
+        function exportReport() {
+            if (results.length === 0) {
+                alert('⚠️ ไม่มีข้อมูล');
+                return;
+            }
+            
+            const ws_data = [
+                ['รายงาน Triage ผิดพลาด'],
+                ['วันที่:', new Date().toLocaleString('th-TH')],
+                [],
+                ['#', 'HN', 'ชื่อ', 'T1', 'T2', 'สถานะ', 'Dx', 'เวลา', 'รอ']
+            ];
+            
+            results.forEach((r, i) => {
+                if (r.status === 'ผิด') {
+                    ws_data.push([i+1, r.hn, r.name, r.triage1, r.triage2, r.status, r.dx, r.timeReport, r.waitingTime]);
+                }
+            });
+            
+            ws_data.push([]);
+            const total = results.length;
+            const errors = results.filter(r => r.status === 'ผิด').length;
+            ws_data.push(['สรุป:', 'รวม', total, 'ผิด', errors, 'ถูก', total - errors]);
+            
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Report');
+            XLSX.writeFile(wb, `Triage-Report-${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
+        }
+        
+        function clearAll() {
+            if (confirm('ล้างข้อมูลทั้งหมด?')) {
+                uploadedFiles = [];
+                results = [];
+                fileInput.value = '';
+                document.getElementById('fileList').style.display = 'none';
+                document.getElementById('tableContainer').innerHTML = '';
+                document.getElementById('statsSection').style.display = 'none';
+                document.getElementById('ocrBtn').disabled = true;
+                document.getElementById('exportBtn').disabled = true;
+            }
+        }
+    </script>
+</body>
+</html>
